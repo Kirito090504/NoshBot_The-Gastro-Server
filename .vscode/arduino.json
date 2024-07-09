@@ -1,5 +1,6 @@
 {
     "board": "arduino:avr:uno",
     "programmer": "avrisp",
-    "sketch": "NoshBot\\NoshBot.ino"
+    "sketch": "NoshBot\\NoshBot.ino",
+    "port": "COM7"
 }
