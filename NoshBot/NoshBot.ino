@@ -7,8 +7,8 @@
 
 // PIN assignments
 #define PIN_IR_REMOTE 3
-#define IR_SENSOR_LEFT A0
-#define IR_SENSOR_RIGHT A1
+#define IR_SENSOR_LEFT A1
+#define IR_SENSOR_RIGHT A2
 #define MOTOR_LEFT_FORWARD 2
 #define MOTOR_LEFT_PWM 5
 #define MOTOR_RIGHT_FORWARD 4
@@ -99,6 +99,10 @@ void goToTable(int target_row, bool on_left)
         int line_detected_center = digitalRead(CENTER_TRA);
         int line_detected_right = digitalRead(RIGHT_TRA);
 
+        // for some reason, it's 1 when it's clear?
+        int obstacle_detected_left = !digitalRead(IR_SENSOR_LEFT);
+        int obstacle_detected_right = !digitalRead(IR_SENSOR_RIGHT);
+
         byte ir_command = ir.getIrKey(ir.getCode(), 1);
 
         if (ir_command == IR_KEYCODE_OK)
@@ -106,6 +110,13 @@ void goToTable(int target_row, bool on_left)
             Serial.println("Force stopped.");
             stopMotors();
             break;
+        }
+
+        // stop at all costs to prevent collision
+        if (obstacle_detected_left || obstacle_detected_right)
+        {
+            Serial.println("Obstacle detected.");
+            stopMotors();
         }
 
         // Phase 1: keep turning left/right until center and opposite sensor declares false
