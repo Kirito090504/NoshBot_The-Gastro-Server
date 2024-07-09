@@ -87,12 +87,22 @@ void stopMotors()
 
 void goToTable(int target_row, bool on_left)
 {
-
+    int current_row = 0;
     while (!destination_reached)
     {
         int line_detected_left = digitalRead(LEFT_TRA);
         int line_detected_center = digitalRead(CENTER_TRA);
         int line_detected_right = digitalRead(RIGHT_TRA);
+
+        byte ir_command = ir.getIrKey(ir.getCode(), 1);
+
+        if (ir_command == IR_KEYCODE_OK)
+        {
+            Serial.println("Force stopped.");
+            stopMotors();
+            break;
+        }
+
         if (!line_detected_left && !line_detected_center && !line_detected_right)
         {
             Serial.println("stopped");
@@ -133,8 +143,19 @@ void goToTable(int target_row, bool on_left)
         }
         else if (line_detected_left && line_detected_center && line_detected_right)
         {
-            Serial.println("forward (WIP)"); // TODO
-            moveForward(0, MOVEMENT_SPEED);
+            if (++current_row == target_row)
+            {
+                if (on_left)
+                {
+                    Serial.println("left (intersection)");
+                    turnLeft(500, TURN_SPEED);
+                }
+                else
+                {
+                    Serial.println("right (intersection)");
+                    turnRight(500, TURN_SPEED);
+                }
+            }
         }
         else
         {
@@ -143,6 +164,7 @@ void goToTable(int target_row, bool on_left)
     }
 
     Serial.println("Destination reached!");
+    destination_reached = false;
 }
 
 void loop()
