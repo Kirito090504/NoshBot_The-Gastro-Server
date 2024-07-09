@@ -4,7 +4,7 @@
 IRremote ir(3);
 
 // Pin definitions
-const int motorLeftForward = 2;
+const int MOTOR_LEFT_FORWARD = 2;
 const int motorLeftPWM = 5;
 const int motorRightForward = 4;
 const int motorRightPWM = 6;
@@ -12,7 +12,7 @@ const int lineSensorLeft = A0;
 const int lineSensorRight = A1;
 
 void setup() {
-  pinMode(motorLeftForward, OUTPUT);
+  pinMode(MOTOR_LEFT_FORWARD, OUTPUT);
   pinMode(motorLeftPWM, OUTPUT);
   pinMode(motorRightForward, OUTPUT);
   pinMode(motorRightPWM, OUTPUT);
@@ -21,15 +21,15 @@ void setup() {
 }
 
 void moveForward(int duration, int speed) {
-  digitalWrite(motorLeftForward, HIGH);
-  digitalWrite(motorRightForward, LOW);
+  digitalWrite(MOTOR_LEFT_FORWARD, HIGH);
+  digitalWrite(motorRightForward, HIGH);
   analogWrite(motorLeftPWM, speed);
   analogWrite(motorRightPWM, speed);
   delay(duration);
 }
 
 void moveBackward(int duration, int speed) {
-  digitalWrite(motorLeftForward, LOW);
+  digitalWrite(MOTOR_LEFT_FORWARD, HIGH);
   digitalWrite(motorRightForward, HIGH);
   analogWrite(motorLeftPWM, speed);
   analogWrite(motorRightPWM, speed);
@@ -37,7 +37,27 @@ void moveBackward(int duration, int speed) {
 }
 
 void turnLeft(int duration, int speed) {
-  digitalWrite(motorLeftForward, LOW);
+  digitalWrite(MOTOR_LEFT_FORWARD, LOW);
+  digitalWrite(motorRightForward, HIGH);
+  analogWrite(motorLeftPWM, speed);
+  analogWrite(motorRightPWM, speed);
+  delay(duration);
+}
+
+Servo myservo;
+float checkdistance() {
+  digitalWrite(12, LOW);
+  delayMicroseconds(2);
+  digitalWrite(12, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(12, LOW);
+  float distance = pulseIn(13, HIGH) / 58.00;
+  delay(10);
+  return distance;
+}
+
+void turnRight(int duration, int speed){
+  digitalWrite(MOTOR_LEFT_FORWARD, HIGH);
   digitalWrite(motorRightForward, LOW);
   analogWrite(motorLeftPWM, speed);
   analogWrite(motorRightPWM, speed);
@@ -322,7 +342,7 @@ void loop() {
     turnLeft(200, 50);
     stopMotors();
   } else if (ir.getIrKey(ir.getCode(),1) == IR_KEYCODE_RIGHT) {
-    digitalWrite(motorLeftForward, HIGH);
+    digitalWrite(MOTOR_LEFT_FORWARD, HIGH);
     analogWrite(motorLeftPWM, 50);
     digitalWrite(motorRightForward, HIGH);
     analogWrite(motorRightPWM, 50);
@@ -375,7 +395,7 @@ void loop() {
     // Move straight for 4 seconds
     moveForward(4000, 200);
   } else if (ir.getIrKey(ir.getCode(),1) == IR_KEYCODE_3) {
-    digitalWrite(motorLeftForward, HIGH);
+    digitalWrite(MOTOR_LEFT_FORWARD, HIGH);
     analogWrite(motorLeftPWM, 130);
     digitalWrite(motorRightForward, HIGH);
     analogWrite(motorRightPWM, 130);
@@ -387,19 +407,19 @@ void loop() {
 
   // if (leftSensorValue == HIGH && rightSensorValue == LOW) {
   //   // Turn right
-  //   digitalWrite(motorLeftForward, HIGH);
+  //   digitalWrite(MOTOR_LEFT_FORWARD, HIGH);
   //   analogWrite(motorLeftPWM, 150);
   //   digitalWrite(motorRightForward, HIGH);
   //   analogWrite(motorRightPWM, 0);
   // } else if (leftSensorValue == LOW && rightSensorValue == HIGH) {
   //   // Turn left
-  //   digitalWrite(motorLeftForward, HIGH);
+  //   digitalWrite(MOTOR_LEFT_FORWARD, HIGH);
   //   analogWrite(motorLeftPWM, 0);
   //   digitalWrite(motorRightForward, HIGH);
   //   analogWrite(motorRightPWM, 150);
   // } else if (leftSensorValue == LOW && rightSensorValue == LOW) {
   //   // Move forward
-  //   digitalWrite(motorLeftForward, HIGH);
+  //   digitalWrite(MOTOR_LEFT_FORWARD, HIGH);
   //   analogWrite(motorLeftPWM, 150);
   //   digitalWrite(motorRightForward, LOW);
   //   analogWrite(motorRightPWM, 150);
