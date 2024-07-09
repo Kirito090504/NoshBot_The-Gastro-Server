@@ -88,6 +88,11 @@ void stopMotors()
 void goToTable(int target_row, bool on_left)
 {
     int current_row = 0;
+    Serial.println("goToTable started...");
+    bool turn_phase_1 = false;
+    bool turn_phase_2 = false;
+    bool intersection_already_registered = false;
+
     while (!destination_reached)
     {
         int line_detected_left = digitalRead(LEFT_TRA);
@@ -103,6 +108,56 @@ void goToTable(int target_row, bool on_left)
             break;
         }
 
+        // Phase 1: keep turning left/right until center and opposite sensor declares false
+        if (turn_phase_1)
+        {
+            if (on_left)
+            {
+                Serial.println("left (phase 1)");
+                turnLeft(50, TURN_SPEED);
+                if (!line_detected_center && !line_detected_right)
+                {
+                    turn_phase_1 = false;
+                    turn_phase_2 = true;
+                }
+            }
+            else
+            {
+                Serial.println("right (phase 1)");
+                turnRight(50, TURN_SPEED);
+                if (!line_detected_center && !line_detected_left)
+                {
+                    turn_phase_1 = false;
+                    turn_phase_2 = true;
+                }
+            }
+            continue;
+        }
+        // Phase 2: keep turning left/right until center declares true
+        else if (turn_phase_2)
+        {
+            if (on_left)
+            {
+                Serial.println("left (phase 2)");
+                turnLeft(0, TURN_SPEED);
+                if (line_detected_center && line_detected_right)
+                    turn_phase_2 = false;
+            }
+            else
+            {
+                Serial.println("right (phase 2)");
+                turnRight(0, TURN_SPEED);
+                if (line_detected_center && line_detected_left)
+                    turn_phase_2 = false;
+            }
+            continue;
+        }
+
+        // We have passed the intersection, we can now return this to false.
+        if (!(line_detected_left && line_detected_center && line_detected_right))
+            intersection_already_registered = false;
+
+        // Automated driving
         if (!line_detected_left && !line_detected_center && !line_detected_right)
         {
             Serial.println("stopped");
@@ -127,11 +182,6 @@ void goToTable(int target_row, bool on_left)
             Serial.println("right");
             turnRight(0, TURN_SPEED);
         }
-        else if (line_detected_left && !line_detected_center && !line_detected_right)
-        {
-            Serial.println("left (no center)");
-            turnLeft(0, TURN_SPEED);
-        }
         else if (line_detected_left && !line_detected_center && line_detected_right)
         {
             Serial.println("no center");
@@ -141,10 +191,22 @@ void goToTable(int target_row, bool on_left)
             Serial.println("left");
             turnLeft(0, TURN_SPEED);
         }
+        else if (line_detected_left && !line_detected_center && !line_detected_right)
+        {
+            Serial.println("left (no center)");
+            turnLeft(0, TURN_SPEED);
+        }
         else if (line_detected_left && line_detected_center && line_detected_right)
         {
+            Serial.println(String(current_row) + " == " + String(target_row));
+            if (intersection_already_registered)
+                continue;
+            intersection_already_registered = true; // Prevent increments from the same intersection
+
             if (++current_row == target_row)
             {
+                turn_phase_1 = true;
+                moveForward(500, MOVEMENT_SPEED); // put the intersection under the bot
                 if (on_left)
                 {
                     Serial.println("left (intersection)");
