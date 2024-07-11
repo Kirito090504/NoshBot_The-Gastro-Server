@@ -1,7 +1,11 @@
 #include <Servo.h>
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 4);
 
 #include "IR_remote.h"
 #include "keymap.h"
+
 
 #define BAUDRATE 9600
 #define OVERRIDE_OBSTACLE_DETECTION true
@@ -30,6 +34,11 @@ int current_row = 0;
 bool destination_reached = false;
 IRremote ir(PIN_IR_REMOTE);
 
+void LCD_Display(){
+    lcd.init();
+    lcd.backlight();
+}
+
 void setup()
 {
     Serial.begin(BAUDRATE);
@@ -42,6 +51,8 @@ void setup()
     pinMode(IR_SENSOR_RIGHT, INPUT);
     pinMode(BUTTON, INPUT);
     Serial.println("Ready.");
+
+    LCD_Display();
 }
 
 /* Move Noshbot forward */
@@ -431,6 +442,12 @@ void returnHome()
     moveForward(500, MOVEMENT_SPEED); // put the intersection under the bot
     perform_u_turn();
     Serial.println("Ready na ulit.");
+ 
+    delay(5000);
+
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Nosh");
 }
 
 void loop()
