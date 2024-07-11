@@ -4,6 +4,7 @@
 #include "keymap.h"
 
 #define BAUDRATE 9600
+#define OVERRIDE_OBSTACLE_DETECTION true
 
 // PIN assignments
 #define PIN_IR_REMOTE 3
@@ -23,7 +24,6 @@
 
 bool on_left;
 int target_row;
-
 int current_row = 0;
 
 // bool at_home = true;
@@ -122,7 +122,7 @@ void goToTable(int target_row, bool on_left)
         }
 
         // stop at all costs to prevent collision
-        if (obstacle_detected_left || obstacle_detected_right)
+        if ((obstacle_detected_left || obstacle_detected_right) && !OVERRIDE_OBSTACLE_DETECTION)
         {
             Serial.println("Obstacle detected.");
             stopMotors();
@@ -219,7 +219,7 @@ void goToTable(int target_row, bool on_left)
         }
         else if (line_detected_left && line_detected_center && line_detected_right)
         {
-            // Serial.println(String(current_row) + " == " + String(target_row));
+            Serial.println(String(current_row) + " == " + String(target_row));
             if (intersection_already_registered)
                 continue;
             intersection_already_registered = true; // Prevent increments from the same intersection
@@ -227,7 +227,7 @@ void goToTable(int target_row, bool on_left)
             if (++current_row == target_row)
             {
                 turn_phase_1 = true;
-                moveForward(500, MOVEMENT_SPEED); // put the intersection under the bot
+                moveForward(400, MOVEMENT_SPEED); // put the intersection under the bot
                 if (on_left)
                 {
                     Serial.println("left (intersection)");
@@ -248,16 +248,39 @@ void goToTable(int target_row, bool on_left)
     Serial.println("Destination reached!");
 }
 
+void perform_u_turn()
+{
+    bool line_detected = false;
+    Serial.println("Performing U-Turn...");
+    while (true)
+    {
+        byte ir_command = ir.getIrKey(ir.getCode(), 1);
+
+        if (ir_command == IR_KEYCODE_OK)
+        {
+            Serial.println("Force stopped.");
+            stopMotors();
+            break;
+        }
+
+        turnRight(0, TURN_SPEED);
+        if (digitalRead(CENTER_TRA) && digitalRead(LEFT_TRA))
+            break;
+    }
+    stopMotors();
+    Serial.println("U-Turn Done.");
+}
+
 /* Make NoshBot return to the starting point */
-void returnHome(int current_row)
+void returnHome()
 {
     bool turn_phase_1 = false;
     bool turn_phase_2 = false;
-    bool line_detected = false;
     bool intersection_already_registered = false;
 
     Serial.println("NoshBot Going Home!");
 
+    perform_u_turn();
     while (destination_reached)
     {
         int line_detected_left = digitalRead(LEFT_TRA);
@@ -277,19 +300,10 @@ void returnHome(int current_row)
         }
 
         // stop at all costs to prevent collision
-        if (obstacle_detected_left || obstacle_detected_right)
+        if ((obstacle_detected_left || obstacle_detected_right) && !OVERRIDE_OBSTACLE_DETECTION)
         {
             Serial.println("Obstacle detected.");
             stopMotors();
-        }
-
-        while (!line_detected)
-        {
-            turnRight(50, TURN_SPEED);
-            if (digitalRead(CENTER_TRA))
-            {
-                line_detected = true;
-            }
         }
 
         // Phase 1: keep turning left/right until center and opposite sensor declares false
@@ -348,6 +362,7 @@ void returnHome(int current_row)
             // Stop if the line no longer exists.
             stopMotors();
             destination_reached = true;
+            break;
         }
         else if (!line_detected_left && !line_detected_center && line_detected_right)
         {
@@ -382,6 +397,7 @@ void returnHome(int current_row)
         }
         else if (line_detected_left && line_detected_center && line_detected_right)
         {
+            Serial.println(String(current_row) + " == " + String(target_row));
             if (intersection_already_registered)
                 continue;
             intersection_already_registered = true; // Prevent increments from the same intersection
@@ -389,7 +405,7 @@ void returnHome(int current_row)
             if (--current_row == target_row)
             {
                 turn_phase_1 = true;
-                moveForward(500, MOVEMENT_SPEED); // put the intersection under the bot
+                moveForward(400, MOVEMENT_SPEED); // put the intersection under the bot
                 if (on_left)
                 {
                     Serial.println("left (intersection)");
@@ -409,7 +425,11 @@ void returnHome(int current_row)
     }
 
     Serial.println("Destination reached!");
-    destination_reached = true;
+    destination_reached = false;
+    Serial.println("Turning back...");
+    moveForward(500, MOVEMENT_SPEED); // put the intersection under the bot
+    perform_u_turn();
+    Serial.println("Ready.");
 }
 
 void loop()
@@ -420,10 +440,12 @@ void loop()
     {
     case IR_KEYCODE_UP: // Go forward.
         moveForward(0, 150);
+        stopMotors();
         break;
 
     case IR_KEYCODE_DOWN: // Go backward.
         moveBackward(0, 150);
+        stopMotors();
         break;
 
     case IR_KEYCODE_LEFT: // Turn left.
@@ -465,7 +487,7 @@ void loop()
         break;
 
     case IR_KEYCODE_9:
-        returnHome(true);
+        returnHome();
         break;
 
     default:
