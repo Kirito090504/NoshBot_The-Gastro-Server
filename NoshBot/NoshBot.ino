@@ -1,16 +1,13 @@
 #include <Servo.h>
 #include <LiquidCrystal_I2C.h>
-
-LiquidCrystal_I2C lcd(0x27, 16, 4);
-
 #include "IR_remote.h"
 #include "keymap.h"
 
+// Constants and PIN assignments
 
 #define BAUDRATE 9600
-#define OVERRIDE_OBSTACLE_DETECTION true
+#define OVERRIDE_OBSTACLE_DETECTION false
 
-// PIN assignments
 #define PIN_IR_REMOTE 3
 #define IR_SENSOR_LEFT A1
 #define IR_SENSOR_RIGHT A2
@@ -22,9 +19,16 @@ LiquidCrystal_I2C lcd(0x27, 16, 4);
 #define CENTER_TRA 8
 #define RIGHT_TRA 9
 #define BUTTON 13
+#define TRIGPIN 12 
+#define ECHOPIN 13
+#define SERVO 10
 
 #define MOVEMENT_SPEED 80
 #define TURN_SPEED 50
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+Servo MYSERVO;
+IRremote ir(PIN_IR_REMOTE);
 
 bool on_left;
 int target_row;
@@ -32,7 +36,14 @@ int current_row = 0;
 
 // bool at_home = true;
 bool destination_reached = false;
-IRremote ir(PIN_IR_REMOTE);
+
+bool obstacle_detected = false;
+
+unsigned long previousMillis = 0;        // will store last time servo was updated
+const long interval = 15;                // interval for servo movement (milliseconds)
+int angle = 0;                           // initial angle for servo
+bool increasing = true;                  // direction flag for servo
+
 
 void LCD_Display(){
     lcd.init();
@@ -43,6 +54,8 @@ void setup()
 {
     Serial.begin(BAUDRATE);
     Serial.println("Getting ready...");
+
+
     pinMode(MOTOR_LEFT_FORWARD, OUTPUT);
     pinMode(MOTOR_LEFT_PWM, OUTPUT);
     pinMode(MOTOR_RIGHT_FORWARD, OUTPUT);
@@ -50,9 +63,36 @@ void setup()
     pinMode(IR_SENSOR_LEFT, INPUT);
     pinMode(IR_SENSOR_RIGHT, INPUT);
     pinMode(BUTTON, INPUT);
+    pinMode(TRIGPIN, OUTPUT);
+    pinMode(ECHOPIN, INPUT);
+    
+    MYSERVO.attach(SERVO);
     Serial.println("Ready.");
-
     LCD_Display();
+}
+
+/* checks obstacles */
+bool checkObstacle() {
+  long duration, distance;
+  
+  digitalWrite(TRIGPIN, LOW); 
+  delayMicroseconds(2); 
+  digitalWrite(TRIGPIN, HIGH);
+  delayMicroseconds(10); 
+  digitalWrite(TRIGPIN, LOW);
+  
+  duration = pulseIn(ECHOPIN, HIGH);
+  distance = (duration / 2) / 29.1; // Calculate distance in cm
+  
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+  
+  if (distance < 20 && distance > 0) {
+    return true; // Obstacle detected within 20cm
+  } else {
+    return false; // No obstacle detected or out of range
+  }
 }
 
 /* Move Noshbot forward */
@@ -238,7 +278,7 @@ void goToTable(int target_row, bool on_left)
             if (++current_row == target_row)
             {
                 turn_phase_1 = true;
-                moveForward(400, MOVEMENT_SPEED); // put the intersection under the bot
+                moveForward(300, MOVEMENT_SPEED); // put the intersection under the bot
                 if (on_left)
                 {
                     Serial.println("left (intersection)");
@@ -287,12 +327,15 @@ void returnHome()
 {
     bool turn_phase_1 = false;
     bool turn_phase_2 = false;
+
     target_row = current_row;
+
     bool intersection_already_registered = false;
 
     Serial.println("NoshBot Going Home!");
 
     perform_u_turn();
+
     while (destination_reached)
     {
         int line_detected_left = digitalRead(LEFT_TRA);
@@ -312,12 +355,27 @@ void returnHome()
         }
 
         // stop at all costs to prevent collision
-        if ((obstacle_detected_left || obstacle_detected_right) && !OVERRIDE_OBSTACLE_DETECTION)
+        while ((obstacle_detected_left || obstacle_detected_right) && !OVERRIDE_OBSTACLE_DETECTION)
         {
             Serial.println("Obstacle detected.");
             stopMotors();
+            delay(100);
+
+            obstacle_detected_left = !digitalRead(IR_SENSOR_LEFT);
+            obstacle_detected_left = !digitalRead(IR_SENSOR_RIGHT);
+
+            continue;
         }
 
+        while (checkObstacle() && !OVERRIDE_OBSTACLE_DETECTION)
+        {
+            Serial.println("Obstacle detected. Waiting...");
+            stopMotors();
+            delay(100);
+
+            continue;
+        }
+        
         // Phase 1: keep turning left/right until center and opposite sensor declares false
         if (turn_phase_1)
         {
@@ -417,7 +475,7 @@ void returnHome()
             if (current_row-- == target_row)
             {
                 turn_phase_1 = true;
-                moveForward(400, MOVEMENT_SPEED); // put the intersection under the bot
+                moveForward(300, MOVEMENT_SPEED); // put the intersection under the bot
                 if (on_left)
                 {
                     Serial.println("left (intersection)");
@@ -443,73 +501,190 @@ void returnHome()
     perform_u_turn();
     Serial.println("Ready na ulit.");
  
-    delay(5000);
-
     lcd.clear();
     lcd.setCursor(0,0);
-    lcd.print("Nosh");
-}
+    lcd.print("NoshBot is Home!");
+    
+    delay(2000);
+}    
+
+
 
 void loop()
-{
-    byte ir_command = ir.getIrKey(ir.getCode(), 1);
-
-    switch (ir_command)
     {
-    case IR_KEYCODE_UP: // Go forward.
-        moveForward(0, 150);
-        stopMotors();
-        break;
 
-    case IR_KEYCODE_DOWN: // Go backward.
-        moveBackward(0, 150);
-        stopMotors();
-        break;
+        unsigned long currentMillis = millis();
 
-    case IR_KEYCODE_LEFT: // Turn left.
-        turnLeft(200, 50);
-        stopMotors();
-        break;
+        byte ir_command = ir.getIrKey(ir.getCode(), 1);
 
-    case IR_KEYCODE_RIGHT: // Turn right.
-        turnRight(200, 50);
-        stopMotors();
-        break;
+        switch (ir_command)
+        {
+        case IR_KEYCODE_UP: // Go forward.
+            moveForward(0, 150);
+            break;
 
-    case IR_KEYCODE_OK: // Stop moving.
-        stopMotors();
-        break;
+        case IR_KEYCODE_DOWN: // Go backward.
+            moveBackward(0, 150);
+            break;
 
-    case IR_KEYCODE_1:
-        goToTable(1, false);
-        break;
+        case IR_KEYCODE_LEFT: // Turn left.
+            turnLeft(200, 50);
+            stopMotors();
+            break;
 
-    case IR_KEYCODE_2:
-        goToTable(1, true);
-        break;
+        case IR_KEYCODE_RIGHT: // Turn right.
+            turnRight(200, 50);
+            stopMotors();
+            break;
 
-    case IR_KEYCODE_3:
-        goToTable(2, false);
-        break;
+        case IR_KEYCODE_OK: // Stop moving.
+            stopMotors();
+            break;
 
-    case IR_KEYCODE_4:
-        goToTable(2, true);
-        break;
+        case IR_KEYCODE_1:
+            goToTable(1, false);
+            lcd.clear();
+            lcd.setCursor(0,0);
+            lcd.print("Serving Table 1!");
+            break;
 
-    case IR_KEYCODE_5:
-        goToTable(3, false);
-        break;
+        case IR_KEYCODE_2:
+            goToTable(1, true);
+            lcd.clear();
+            lcd.setCursor(0,0);
+            lcd.print("Serving Table 2!");
+            break;
 
-    case IR_KEYCODE_6:
-        goToTable(3, true);
-        break;
+        case IR_KEYCODE_3:
+            goToTable(2, false);
+            lcd.clear();
+            lcd.setCursor(0,0);
+            lcd.print("Serving Table 3!");
+            break;
 
-    case IR_KEYCODE_9:
-        returnHome();
-        break;
+        case IR_KEYCODE_4:
+            goToTable(2, true);
+            lcd.clear();
+            lcd.setCursor(0,0);
+            lcd.print("Serving Table 4!");
+            break;
 
-    default:
-        // Serial.println("ERROR: Unknown IR command.");
-        break;
+        case IR_KEYCODE_5:
+            goToTable(3, false);
+            lcd.clear();
+            lcd.setCursor(0,0);
+            lcd.print("Serving Table 5!");
+            break;
+
+        case IR_KEYCODE_6:
+            goToTable(3, true);
+            lcd.clear();
+            lcd.setCursor(0,0);
+            lcd.print("Serving Table 6!");
+            break;
+
+        case IR_KEYCODE_9:
+            returnHome();
+            break;
+
+        default:
+            // Serial.println("ERROR: Unknown IR command.");
+            break;
+        }
+
+        // Non-blocking ultrasonic sensor scanning
+        if (currentMillis - previousMillis >= interval) {
+            previousMillis = currentMillis;
+
+            if (increasing) {
+                angle++;
+                if (angle >= 180) {
+                    increasing = false;
+                }
+            } else {
+                angle--;
+                if (angle <= 0) {
+                    increasing = true;
+                }
+            }
+
+            MYSERVO.write(angle);
+
+            // Check for obstacles
+            if (checkObstacle()) {
+                // If obstacle detected, stop motors
+                stopMotors();
+
+                // Wait for obstacle to clear
+                while (checkObstacle()) {
+                    delay(100);
+                    // Check for remote commands while waiting
+                    ir_command = ir.getIrKey(ir.getCode(), 1);
+                    if (ir_command == IR_KEYCODE_OK) {
+                        stopMotors();
+                        break;
+                    }
+                }
+                // Resume normal scanning after obstacle is cleared
+                MYSERVO.write(angle);
+            }
+        }
+
     }
+
+
+/* option for ultrasonic sensor */
+/* void loop() {
+  long duration, distance;
+  
+  // Rotate the servo from left to right continuously
+  for (int angle = 0; angle <= 180; angle++) {
+    MYSERVO.write(angle);
+    delay(15); // Adjust speed of servo rotation here
+    // Check for obstacles
+    if (checkObstacle()) {
+      // If obstacle detected, focus on it
+      while (checkObstacle()) {
+        delay(100); // Wait for obstacle to clear
+      }
+      break; // Exit the for loop to resume normal scanning
+    }
+  }
+  
+  for (int angle = 180; angle >= 0; angle--) {
+    MYSERVO.write(angle);
+    delay(15); // Adjust speed of servo rotation here
+    // Check for obstacles
+    if (checkObstacle()) {
+      // If obstacle detected, focus on it
+      while (checkObstacle()) {
+        delay(100); // Wait for obstacle to clear
+      }
+      break; // Exit the for loop to resume normal scanning
+    }
+  }
 }
+
+// Function to check for obstacle using ultrasonic sensor
+bool checkObstacle() {
+  long duration, distance;
+  
+  digitalWrite(TRIGPIN, LOW); 
+  delayMicroseconds(2); 
+  digitalWrite(TRIGPIN, HIGH);
+  delayMicroseconds(10); 
+  digitalWrite(TRIGPIN, LOW);
+  
+  duration = pulseIn(echoPin, HIGH);
+  distance = (duration / 2) / 29.1; // Calculate distance in cm
+  
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+  
+  if (distance < 20 && distance > 0) {
+    return true; // Obstacle detected within 20cm
+  } else {
+    return false; // No obstacle detected or out of range
+  }
+} */
