@@ -276,6 +276,7 @@ void returnHome()
 {
     bool turn_phase_1 = false;
     bool turn_phase_2 = false;
+    target_row = current_row;
     bool intersection_already_registered = false;
 
     Serial.println("NoshBot Going Home!");
@@ -402,7 +403,7 @@ void returnHome()
                 continue;
             intersection_already_registered = true; // Prevent increments from the same intersection
 
-            if (--current_row == target_row)
+            if (current_row-- == target_row)
             {
                 turn_phase_1 = true;
                 moveForward(400, MOVEMENT_SPEED); // put the intersection under the bot
@@ -429,7 +430,7 @@ void returnHome()
     Serial.println("Turning back...");
     moveForward(500, MOVEMENT_SPEED); // put the intersection under the bot
     perform_u_turn();
-    Serial.println("Ready.");
+    Serial.println("Ready na ulit.");
 }
 
 void loop()
