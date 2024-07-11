@@ -16,11 +16,16 @@
 #define LEFT_TRA 7
 #define CENTER_TRA 8
 #define RIGHT_TRA 9
+#define BUTTON 13
 
 #define MOVEMENT_SPEED 80
 #define TURN_SPEED 50
 
+bool on_left;
+int target_row;
+
 int current_row = 0;
+
 // bool at_home = true;
 bool destination_reached = false;
 IRremote ir(PIN_IR_REMOTE);
@@ -35,6 +40,7 @@ void setup()
     pinMode(MOTOR_RIGHT_PWM, OUTPUT);
     pinMode(IR_SENSOR_LEFT, INPUT);
     pinMode(IR_SENSOR_RIGHT, INPUT);
+    pinMode(BUTTON, INPUT);
     Serial.println("Ready.");
 }
 
@@ -85,10 +91,13 @@ void stopMotors()
     analogWrite(MOTOR_RIGHT_PWM, 0);
 }
 
+/* Move NoshBot to the chosen Table */
 void goToTable(int target_row, bool on_left)
 {
     int current_row = 0;
+
     Serial.println("goToTable started...");
+
     bool turn_phase_1 = false;
     bool turn_phase_2 = false;
     bool intersection_already_registered = false;
@@ -144,6 +153,7 @@ void goToTable(int target_row, bool on_left)
             }
             continue;
         }
+
         // Phase 2: keep turning left/right until center declares true
         else if (turn_phase_2)
         {
@@ -209,7 +219,7 @@ void goToTable(int target_row, bool on_left)
         }
         else if (line_detected_left && line_detected_center && line_detected_right)
         {
-            Serial.println(String(current_row) + " == " + String(target_row));
+            // Serial.println(String(current_row) + " == " + String(target_row));
             if (intersection_already_registered)
                 continue;
             intersection_already_registered = true; // Prevent increments from the same intersection
@@ -235,9 +245,171 @@ void goToTable(int target_row, bool on_left)
             Serial.println("ERROR: Unknown state!");
         }
     }
+    Serial.println("Destination reached!");
+}
+
+/* Make NoshBot return to the starting point */
+void returnHome(int current_row)
+{
+    bool turn_phase_1 = false;
+    bool turn_phase_2 = false;
+    bool line_detected = false;
+    bool intersection_already_registered = false;
+
+    Serial.println("NoshBot Going Home!");
+
+    while (destination_reached)
+    {
+        int line_detected_left = digitalRead(LEFT_TRA);
+        int line_detected_center = digitalRead(CENTER_TRA);
+        int line_detected_right = digitalRead(RIGHT_TRA);
+
+        int obstacle_detected_left = !digitalRead(IR_SENSOR_LEFT);
+        int obstacle_detected_right = !digitalRead(IR_SENSOR_RIGHT);
+
+        byte ir_command = ir.getIrKey(ir.getCode(), 1);
+
+        if (ir_command == IR_KEYCODE_OK)
+        {
+            Serial.println("Force stopped.");
+            stopMotors();
+            break;
+        }
+
+        // stop at all costs to prevent collision
+        if (obstacle_detected_left || obstacle_detected_right)
+        {
+            Serial.println("Obstacle detected.");
+            stopMotors();
+        }
+
+        while (!line_detected)
+        {
+            turnRight(50, TURN_SPEED);
+            if (digitalRead(CENTER_TRA))
+            {
+                line_detected = true;
+            }
+        }
+
+        // Phase 1: keep turning left/right until center and opposite sensor declares false
+        if (turn_phase_1)
+        {
+            if (on_left)
+            {
+                Serial.println("left (phase 1)");
+                turnRight(50, TURN_SPEED);
+                if (!line_detected_center && !line_detected_right)
+                {
+                    turn_phase_1 = false;
+                    turn_phase_2 = true;
+                }
+            }
+            else
+            {
+                Serial.println("right (phase 1)");
+                turnLeft(50, TURN_SPEED);
+                if (!line_detected_center && !line_detected_left)
+                {
+                    turn_phase_1 = false;
+                    turn_phase_2 = true;
+                }
+            }
+            continue;
+        }
+        // Phase 2: keep turning left/right until center declares true
+        else if (turn_phase_2)
+        {
+            if (on_left)
+            {
+                Serial.println("left (phase 2)");
+                turnRight(0, TURN_SPEED);
+                if (line_detected_center && line_detected_right)
+                    turn_phase_2 = false;
+            }
+            else
+            {
+                Serial.println("right (phase 2)");
+                turnLeft(0, TURN_SPEED);
+                if (line_detected_center && line_detected_left)
+                    turn_phase_2 = false;
+            }
+            continue;
+        }
+
+        // We have passed the intersection, we can now return this to false.
+        if (!(line_detected_left && line_detected_center && line_detected_right))
+            intersection_already_registered = false;
+
+        // Automated driving
+        if (!line_detected_left && !line_detected_center && !line_detected_right)
+        {
+            Serial.println("stopped");
+            // Stop if the line no longer exists.
+            stopMotors();
+            destination_reached = true;
+        }
+        else if (!line_detected_left && !line_detected_center && line_detected_right)
+        {
+            Serial.println("right (no center)");
+            // The line is to the right
+            turnRight(0, TURN_SPEED);
+        }
+        else if (!line_detected_left && line_detected_center && !line_detected_right)
+        {
+            Serial.println("forward");
+            // The line is at the center
+            moveForward(0, MOVEMENT_SPEED);
+        }
+        else if (!line_detected_left && line_detected_center && line_detected_right)
+        {
+            Serial.println("right");
+            turnRight(0, TURN_SPEED);
+        }
+        else if (line_detected_left && !line_detected_center && line_detected_right)
+        {
+            Serial.println("no center");
+        }
+        else if (line_detected_left && line_detected_center && !line_detected_right)
+        {
+            Serial.println("left");
+            turnLeft(0, TURN_SPEED);
+        }
+        else if (line_detected_left && !line_detected_center && !line_detected_right)
+        {
+            Serial.println("left (no center)");
+            turnLeft(0, TURN_SPEED);
+        }
+        else if (line_detected_left && line_detected_center && line_detected_right)
+        {
+            if (intersection_already_registered)
+                continue;
+            intersection_already_registered = true; // Prevent increments from the same intersection
+
+            if (--current_row == target_row)
+            {
+                turn_phase_1 = true;
+                moveForward(500, MOVEMENT_SPEED); // put the intersection under the bot
+                if (on_left)
+                {
+                    Serial.println("left (intersection)");
+                    turnRight(500, TURN_SPEED);
+                }
+                else
+                {
+                    Serial.println("right (intersection)");
+                    turnLeft(500, TURN_SPEED);
+                }
+            }
+        }
+        else
+        {
+            Serial.println("ERROR: Unknown state!");
+        }
+    }
 
     Serial.println("Destination reached!");
-    destination_reached = false;
+    destination_reached = true;
 }
 
 void loop()
@@ -290,6 +462,10 @@ void loop()
 
     case IR_KEYCODE_6:
         goToTable(3, true);
+        break;
+
+    case IR_KEYCODE_9:
+        returnHome(true);
         break;
 
     default:
