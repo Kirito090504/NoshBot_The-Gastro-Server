@@ -632,3 +632,60 @@ void loop()
         }
 
     }
+
+
+/* option for ultrasonic sensor */
+/* void loop() {
+  long duration, distance;
+  
+  // Rotate the servo from left to right continuously
+  for (int angle = 0; angle <= 180; angle++) {
+    MYSERVO.write(angle);
+    delay(15); // Adjust speed of servo rotation here
+    // Check for obstacles
+    if (checkObstacle()) {
+      // If obstacle detected, focus on it
+      while (checkObstacle()) {
+        delay(100); // Wait for obstacle to clear
+      }
+      break; // Exit the for loop to resume normal scanning
+    }
+  }
+  
+  for (int angle = 180; angle >= 0; angle--) {
+    MYSERVO.write(angle);
+    delay(15); // Adjust speed of servo rotation here
+    // Check for obstacles
+    if (checkObstacle()) {
+      // If obstacle detected, focus on it
+      while (checkObstacle()) {
+        delay(100); // Wait for obstacle to clear
+      }
+      break; // Exit the for loop to resume normal scanning
+    }
+  }
+}
+
+// Function to check for obstacle using ultrasonic sensor
+bool checkObstacle() {
+  long duration, distance;
+  
+  digitalWrite(TRIGPIN, LOW); 
+  delayMicroseconds(2); 
+  digitalWrite(TRIGPIN, HIGH);
+  delayMicroseconds(10); 
+  digitalWrite(TRIGPIN, LOW);
+  
+  duration = pulseIn(echoPin, HIGH);
+  distance = (duration / 2) / 29.1; // Calculate distance in cm
+  
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+  
+  if (distance < 20 && distance > 0) {
+    return true; // Obstacle detected within 20cm
+  } else {
+    return false; // No obstacle detected or out of range
+  }
+} */
